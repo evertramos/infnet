@@ -1,0 +1,56 @@
+#!/bin/bash
+
+echo "-------------------------------------------"
+echo "Script desenvolvido por Evert Ramos"
+echo "Para atender ao trabalho do InfNet"
+echo "Automação"
+echo "DR1_TP3"
+echo "-------------------------------------------"
+echo "Automatizando o recon inicial"
+echo "-------------------------------------------"
+
+TARGET="${1:-127.0.0.1}"
+PORTS="22 80 443 902 3306 8080 1716 52396"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FULLFILE="scan_${TARGET}_${TIMESTAMP}.log"
+# LOG_FULLFILE="scan_${TARGET}.log"
+
+# função para receber o sinal (SIGINT) de interrupção do script (Ctrl+C)
+trap_stop() {
+  echo "Scan encerrado manualmente [Ctrl+C]"
+  exit 130
+}
+trap trap_stop SIGINT
+
+# Identificação inicial do alvo
+{
+    echo "-------------------------------------------"
+    echo "Data: $(date +"%d-%m-%Y %H:%M:%S")"
+    echo "Alvo: $TARGET"
+    echo "-------------------------------------------"
+
+    echo "> dig"
+    dig "${TARGET}"
+
+    echo ""
+    echo "-------------------------------------------"
+    echo "> whois"
+    whois "${TARGET}"
+
+    echo ""
+    echo "-------------------------------------------"
+    echo "> nmap"
+    sudo nmap -sn ${TARGET}
+    sudo nmap -sT --top-ports 100 ${TARGET}
+    sudo nmap -O ${TARGET}
+
+    echo ""
+    echo "-------------------------------------------"
+    echo ""
+} > "$LOG_FULLFILE" 2>&1
+
+echo "Scan concluído com sucesso!"
+echo "-------------------------------------------"
+
+
+exit 0

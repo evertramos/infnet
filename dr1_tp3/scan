@@ -50,6 +50,7 @@ while getopts ":t:p:o:h" opt; do
   esac
 done
 
+# Remover opções já processadas pelo getopts
 shift $((OPTIND - 1))
 
 # Verifica se alvo foi definido

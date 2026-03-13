@@ -22,11 +22,24 @@ trap_stop() {
 }
 trap trap_stop SIGINT
 
+# Validar se as ferramentas necessárias estão instaladas
+for tool in dig whois nmap; do
+  if [[ -z "$(command -v "$tool")" ]]; then
+      echo "Erro: A ferramenta '$tool' não está instalada. Por favor, instale-a para continuar."
+      exit 1
+  fi
+done
+
 # Identificação inicial do alvo
 {
     echo "-------------------------------------------"
     echo "Data: $(date +"%d-%m-%Y %H:%M:%S")"
     echo "Alvo: $TARGET"
+    if [[ "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Tipo: Endereço IP"
+    else
+        echo "Tipo: Domínio"
+    fi
     echo "-------------------------------------------"
 
     echo "> dig"
@@ -41,7 +54,14 @@ trap trap_stop SIGINT
     echo "-------------------------------------------"
     echo "> nmap"
     sudo nmap -sn ${TARGET}
-    sudo nmap -sT --top-ports 100 ${TARGET}
+    # sudo nmap -sT --top-ports 100 ${TARGET}
+    for PORT in ${PORTS}; do
+      if [[ $(sudo nmap -p ${PORT} ${TARGET} | grep -c "open") -gt 0 ]]; then
+        echo "Porta ${PORT} está aberta."
+      else
+        echo "Porta ${PORT} está fechada ou filtrada."
+      fi
+    done
     sudo nmap -O ${TARGET}
 
     echo ""

@@ -9,11 +9,65 @@ echo "-------------------------------------------"
 echo "Automatizando o recon inicial"
 echo "-------------------------------------------"
 
-TARGET="${1:-127.0.0.1}"
-PORTS="22 80 443 902 3306 8080 1716 52396"
+usage() {
+  echo "Uso: $0 [-t alvo] [-p portas] [-o arquivo_saida] [-h]"
+  echo ""
+  echo "Opções:"
+  echo "  -t alvo           Define o alvo (IP ou domínio)."
+  echo "  -p portas         Define portas para varredura (ex.: 22,80,443)."
+  echo "  -o arquivo_saida  Define nome do arquivo de resultado."
+  echo "  -h                Exibe esta ajuda."
+}
+
+TARGET=""
+PORTS="22,80,443,902,3306,8080,1716,52396"
+
+while getopts ":t:p:o:h" opt; do
+  case "$opt" in
+    t)
+      TARGET="$OPTARG"
+      ;;
+    p)
+      PORTS="$OPTARG"
+      ;;
+    o)
+      LOG_FULLFILE="$OPTARG"
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    :)
+      echo "Erro: a opção -$OPTARG exige um valor."
+      usage
+      exit 1
+      ;;
+    \?)
+      echo "Erro: opção inválida -$OPTARG"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
+# Verifica se alvo foi definido
+if [[ -z "$TARGET" ]]; then
+  echo "Erro: alvo não especificado."
+  usage
+  exit 1
+fi
+
+# Verifica se portas possuem formato válido
+if [[ ! "$PORTS" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+  echo "Erro: formato de portas inválido. Use números separados por vírgula (ex.: 22,80,443)."
+  usage
+  exit 1
+fi
+
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-LOG_FULLFILE="scan_${TARGET}_${TIMESTAMP}.log"
-# LOG_FULLFILE="scan_${TARGET}.log"
+LOG_FULLFILE="${LOG_FULLFILE:-scan_${TARGET}_${TIMESTAMP}.log}"
 
 # função para receber o sinal (SIGINT) de interrupção do script (Ctrl+C)
 trap_stop() {
@@ -55,7 +109,7 @@ done
     echo "> nmap"
     sudo nmap -sn ${TARGET}
     # sudo nmap -sT --top-ports 100 ${TARGET}
-    for PORT in ${PORTS}; do
+    for PORT in ${PORTS//,/ }; do
       if [[ $(sudo nmap -p ${PORT} ${TARGET} | grep -c "open") -gt 0 ]]; then
         echo "Porta ${PORT} está aberta."
       else

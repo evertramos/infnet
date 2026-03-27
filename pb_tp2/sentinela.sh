@@ -2,6 +2,20 @@
 
 LOCAL_TIMESTAMP="$(date '+%Y%m')"
 LOCAL_LOGFILE="logs/sentinela_${LOCAL_TIMESTAMP}.txt"
+LOCAL_FLAG_FILE="${HOME}/flag_script_advance.txt"
+
+save_execution_flag() {
+  echo "sentinela foi executado!" > "${LOCAL_FLAG_FILE}"
+}
+
+handle_interrupt() {
+  echo ""
+  echo "Encerrando sentinela..."
+  exit 130
+}
+
+trap save_execution_flag EXIT
+trap handle_interrupt INT TERM
 
 # Verifiar se está executando na pasta indicada
 LOCAL_SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"

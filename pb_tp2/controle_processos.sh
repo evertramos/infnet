@@ -9,7 +9,7 @@ FLAG_FILE="${HOME}/flag_process_control.txt"
 echo "1. Iniciando processo em background: ${PROCESS_CMD}"
 ping google.com >/dev/null 2>&1 &
 PID=$!
-echo "P.D] ${PID}"
+echo "PID: ${PID}"
 
 echo "2. Jobs atuais (jobs -l):"
 jobs -l

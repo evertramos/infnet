@@ -11,12 +11,15 @@ echo "-------------------------------------------"
 
 # Função para mostrar como usar o script
 usage() {
-  echo "Uso: $0 [-t alvo] [-p portas] [-o arquivo_saida] [-y] [-h]"
+  echo "Uso: $0 [-t alvo] [-p portas] [-o arquivo_saida] [-d] [-w] [-m] [-y] [-h]"
   echo ""
   echo "Opções:"
   echo "  -t alvo           Define o alvo (IP ou domínio)."
   echo "  -p portas         Define portas para varredura (ex.: 22,80,443)."
   echo "  -o arquivo_saida  Define nome do arquivo de resultado."
+  echo "  -d                Executa apenas dig."
+  echo "  -w                Executa apenas whois."
+  echo "  -m                Executa apenas nmap."
   echo "  -y                Força continuação sem perguntas (bypass de validação)."
   echo "  -h                Exibe esta ajuda."
 }
@@ -25,9 +28,13 @@ usage() {
 TARGET=""
 PORTS="22,80,443,902,3306,8080,1716,52396"
 FORCE_CONTINUE=false
+RUN_DIG=false
+RUN_WHOIS=false
+RUN_NMAP=false
+ANY_TOOL_SPECIFIED=false
 
 # getopts para processar os argumentos
-while getopts ":t:p:o:yh" opt; do
+while getopts ":t:p:o:dwmyh" opt; do
   case "$opt" in
     t)
       TARGET="$OPTARG"
@@ -37,6 +44,18 @@ while getopts ":t:p:o:yh" opt; do
       ;;
     o)
       LOG_FULLFILE="$OPTARG"
+      ;;
+    d)
+      RUN_DIG=true
+      ANY_TOOL_SPECIFIED=true
+      ;;
+    w)
+      RUN_WHOIS=true
+      ANY_TOOL_SPECIFIED=true
+      ;;
+    m)
+      RUN_NMAP=true
+      ANY_TOOL_SPECIFIED=true
       ;;
     y)
       FORCE_CONTINUE=true
@@ -60,6 +79,13 @@ done
 
 # Remover opções já processadas pelo getopts
 shift $((OPTIND - 1))
+
+# Se nenhuma ferramenta foi especificada, executa todas
+if [[ "$ANY_TOOL_SPECIFIED" == false ]]; then
+  RUN_DIG=true
+  RUN_WHOIS=true
+  RUN_NMAP=true
+fi
 
 # Verifica se alvo foi definido
 if [[ -z "$TARGET" ]]; then
@@ -134,31 +160,38 @@ done
     fi
     echo "-------------------------------------------"
 
-    echo "> dig"
-    dig "${TARGET}"
+    if [[ "$RUN_DIG" == true ]]; then
+        echo "> dig"
+        dig "${TARGET}"
+        echo ""
+        echo "-------------------------------------------"
+    fi
 
-    echo ""
-    echo "-------------------------------------------"
-    echo "> whois"
-    whois "${TARGET}"
+    if [[ "$RUN_WHOIS" == true ]]; then
+        echo "> whois"
+        whois "${TARGET}"
+        echo ""
+        echo "-------------------------------------------"
+    fi
 
-    echo ""
-    echo "-------------------------------------------"
-    echo "> nmap"
-    sudo nmap -sn ${TARGET}
-    # sudo nmap -sT --top-ports 100 ${TARGET}
-    for PORT in ${PORTS//,/ }; do
-      if [[ $(sudo nmap -p ${PORT} ${TARGET} | grep -c "open") -gt 0 ]]; then
-        echo "Porta ${PORT} está aberta."
-      else
-        echo "Porta ${PORT} está fechada ou filtrada."
-      fi
-    done
-    # Comentamos a linha abaixo para melhor demonstrar o resultado por portas
-    # sudo nmap -O ${TARGET}
+    if [[ "$RUN_NMAP" == true ]]; then
+        echo "> nmap"
+        sudo nmap -sn ${TARGET}
+        # sudo nmap -sT --top-ports 100 ${TARGET}
+        for PORT in ${PORTS//,/ }; do
+          if [[ $(sudo nmap -p ${PORT} ${TARGET} | grep -c "open") -gt 0 ]]; then
+            echo "Porta ${PORT} está aberta."
+          else
+            echo "Porta ${PORT} está fechada ou filtrada."
+          fi
+        done
+        # Comentamos a linha abaixo para melhor demonstrar o resultado por portas
+        # sudo nmap -O ${TARGET}
 
-    echo ""
-    echo "-------------------------------------------"
+        echo ""
+        echo "-------------------------------------------"
+    fi
+
     echo ""
 } > "$LOG_FULLFILE" 2>&1
 # A linha acima salva o resultado do bloco inteiro no arquivo informado

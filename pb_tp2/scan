@@ -1,0 +1,170 @@
+#!/bin/bash
+
+echo "-------------------------------------------"
+echo "Script desenvolvido por Evert Ramos"
+echo "Para atender ao trabalho do InfNet"
+echo "Automação"
+echo "DR1_TP3"
+echo "-------------------------------------------"
+echo "Automatizando o recon inicial"
+echo "-------------------------------------------"
+
+# Função para mostrar como usar o script
+usage() {
+  echo "Uso: $0 [-t alvo] [-p portas] [-o arquivo_saida] [-y] [-h]"
+  echo ""
+  echo "Opções:"
+  echo "  -t alvo           Define o alvo (IP ou domínio)."
+  echo "  -p portas         Define portas para varredura (ex.: 22,80,443)."
+  echo "  -o arquivo_saida  Define nome do arquivo de resultado."
+  echo "  -y                Força continuação sem perguntas (bypass de validação)."
+  echo "  -h                Exibe esta ajuda."
+}
+
+# Variaveis
+TARGET=""
+PORTS="22,80,443,902,3306,8080,1716,52396"
+FORCE_CONTINUE=false
+
+# getopts para processar os argumentos
+while getopts ":t:p:o:yh" opt; do
+  case "$opt" in
+    t)
+      TARGET="$OPTARG"
+      ;;
+    p)
+      PORTS="$OPTARG"
+      ;;
+    o)
+      LOG_FULLFILE="$OPTARG"
+      ;;
+    y)
+      FORCE_CONTINUE=true
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    :)
+      echo "Erro: a opção -$OPTARG exige um valor."
+      usage
+      exit 1
+      ;;
+    \?)
+      echo "Erro: opção inválida -$OPTARG"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Remover opções já processadas pelo getopts
+shift $((OPTIND - 1))
+
+# Verifica se alvo foi definido
+if [[ -z "$TARGET" ]]; then
+  echo "Erro: alvo não especificado."
+  usage
+  exit 1
+fi
+
+# Valida conexão com o alvo
+validate_connection() {
+  if ping -c 1 -W 2 "$TARGET" > /dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Verifica conexão com o alvo
+echo "Validando conexão com o alvo: $TARGET..."
+if validate_connection; then
+  echo "Conexão estabelecida com sucesso!"
+else
+  echo "Aviso: Não foi possível estabelecer conexão com o alvo."
+
+  if [[ "$FORCE_CONTINUE" == false ]]; then
+    read -p "Deseja continuar mesmo assim? (s/n): " response
+    if [[ "$response" != "s" && "$response" != "S" ]]; then
+      echo "Operação cancelada pelo usuário."
+      exit 1
+    fi
+  else
+    echo "Continuando com -y (força)"
+  fi
+fi
+
+# Verifica se as portas no argumento são numeradas
+echo ""
+if [[ ! "$PORTS" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+  echo "Erro: formato de portas inválido. Use números separados por vírgula (ex.: 22,80,443)."
+  usage
+  exit 1
+fi
+
+# Prepara o arquivo de log
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FULLFILE="${LOG_FULLFILE:-scan_${TARGET}_${TIMESTAMP}.log}"
+
+# Função para receber o sinal (SIGINT) de interrupção do script (Ctrl+C)
+trap_stop() {
+  echo "Scan encerrado manualmente [Ctrl+C]"
+  exit 130
+}
+trap trap_stop SIGINT
+
+# Loop para validar se as ferramentas necessárias estão instaladas
+for tool in dig whois nmap; do
+  if [[ -z "$(command -v "$tool")" ]]; then
+      echo "Erro: A ferramenta '$tool' não está instalada. Por favor, instale-a para continuar."
+      exit 1
+  fi
+done
+
+# Identificação do alvo utilizando dig, whois e nmap
+{
+    echo "-------------------------------------------"
+    echo "Data: $(date +"%d-%m-%Y %H:%M:%S")"
+    echo "Alvo: $TARGET"
+    if [[ "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Tipo: Endereço IP"
+    else
+        echo "Tipo: Domínio"
+    fi
+    echo "-------------------------------------------"
+
+    echo "> dig"
+    dig "${TARGET}"
+
+    echo ""
+    echo "-------------------------------------------"
+    echo "> whois"
+    whois "${TARGET}"
+
+    echo ""
+    echo "-------------------------------------------"
+    echo "> nmap"
+    sudo nmap -sn ${TARGET}
+    # sudo nmap -sT --top-ports 100 ${TARGET}
+    for PORT in ${PORTS//,/ }; do
+      if [[ $(sudo nmap -p ${PORT} ${TARGET} | grep -c "open") -gt 0 ]]; then
+        echo "Porta ${PORT} está aberta."
+      else
+        echo "Porta ${PORT} está fechada ou filtrada."
+      fi
+    done
+    # Comentamos a linha abaixo para melhor demonstrar o resultado por portas
+    # sudo nmap -O ${TARGET}
+
+    echo ""
+    echo "-------------------------------------------"
+    echo ""
+} > "$LOG_FULLFILE" 2>&1
+# A linha acima salva o resultado do bloco inteiro no arquivo informado
+
+echo "Scan concluído com sucesso!"
+echo "-------------------------------------------"
+
+
+exit 0
